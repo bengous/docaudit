@@ -1,0 +1,80 @@
+@import url("https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600&display=swap");
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+@theme {
+	/* --- Colors — Foundation --- */
+	--color-fond: #f7f5f2;
+	--color-surface: #ffffff;
+	--color-bordure: #e5e0da;
+	--color-texte: #1a1816;
+	--color-texte-mute: #706b64;
+	--color-fond-alt: #edeae5;
+
+	/* --- Colors — Action (interactive) --- */
+	--color-action: #c45824;
+	--color-action-hover: #d96a35;
+	--color-action-pressed: #a84a1e;
+
+	/* --- Colors — Structure (secondary) --- */
+	--color-structure: #8a8580;
+	--color-structure-hover: #9e9990;
+	--color-structure-mute: #c5c0ba;
+
+	/* --- Colors — Semantic --- */
+	--color-erreur: #c03030;
+	--color-succes: #2e7d32;
+	--color-warning: #c4873a;
+
+	/* --- Typography — Fonts --- */
+	--font-display: "Bricolage Grotesque", sans-serif;
+	--font-body: "Plus Jakarta Sans", sans-serif;
+	--default-font-family: var(--font-body);
+
+	/* --- Radius --- */
+	--radius-sm: 4px;
+	--radius-md: 8px;
+	--radius-lg: 12px;
+}
+
+/* --- Global base styles --- */
+body {
+	background-color: var(--color-fond);
+	color: var(--color-texte);
+}
+
+/* --- Focus (mandatory) --- */
+:focus-visible {
+	outline: 2px solid var(--color-action);
+	outline-offset: 2px;
+}
+:focus:not(:focus-visible) {
+	outline: none;
+}
+
+/* --- Reduced Motion --- */
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		animation-duration: 0.01ms !important;
+		animation-iteration-count: 1 !important;
+		transition-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
+
+/* --- Prose overrides for step 3 --- */
+.prose {
+	--tw-prose-body: var(--color-texte);
+	--tw-prose-headings: var(--color-texte);
+	--tw-prose-links: var(--color-action-pressed);
+	--tw-prose-bold: var(--color-texte);
+	--tw-prose-bullets: var(--color-structure);
+	--tw-prose-counters: var(--color-structure);
+}
+.prose :where(a):not(:where([class~="not-prose"], [class~="not-prose"] *)) {
+	text-decoration: underline;
+	text-underline-offset: 3px;
+	text-decoration-color: var(--color-action);
+}
