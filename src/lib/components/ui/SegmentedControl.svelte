@@ -26,7 +26,7 @@
 		style="left: {activeIndex === 0 ? '2px' : '50%'}"
 	></span>
 
-	{#each options as option, i}
+	{#each options as option, i (option.value)}
 		<button
 			type="button"
 			onclick={i !== activeIndex ? onchange : undefined}

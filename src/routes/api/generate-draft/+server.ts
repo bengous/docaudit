@@ -1,4 +1,3 @@
-import { json } from '@sveltejs/kit';
 import { env } from '$env/dynamic/private';
 import { generateDraft } from '$lib/claude/draft';
 import { generateDraftMock } from '$lib/claude/mock';

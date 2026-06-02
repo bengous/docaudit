@@ -11,9 +11,9 @@ Return ONLY a valid JSON object (no markdown, no explanation outside the JSON) m
 {
   "heuristics": [
     {
-      "id": "string — identifier (e.g. \"H1\")",
+      "id": "string — identifier (e.g. H1)",
       "title": "string — short heuristic title",
-      "status": "\"ok\" | \"a_clarifier\" | \"manquant\" | \"incoherent\" | \"drapeau\"",
+      "status": "ok | a_clarifier | manquant | incoherent | drapeau",
       "excerpt": "string — relevant excerpt from the document (empty if the point is absent)",
       "explanation": "string — explanation of the assigned status",
       "suggestion": "string — concrete action to improve the document"

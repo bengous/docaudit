@@ -59,7 +59,7 @@ describe('workflow helpers', () => {
 	it('throws when draft generation fails', async () => {
 		const failingFetch = async () => new Response(null, { status: 500 });
 		expect(generateImprovedDraft('sess_123', 'sonnet', undefined, failingFetch)).rejects.toThrow(
-			'La generation a echoue. Verifiez votre connexion et reessayez.',
+			'Generation failed. Check your connection and try again.',
 		);
 	});
 });

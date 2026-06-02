@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import AuditHeader from '$lib/components/audit/AuditHeader.svelte';
 	import BottomBar from '$lib/components/audit/BottomBar.svelte';
 	import DraftStep from '$lib/components/audit/DraftStep.svelte';
@@ -25,7 +26,7 @@
 	let error = $state('');
 	let expandedCards = $state<Set<string>>(new Set());
 	let model = $state<'sonnet' | 'haiku'>('haiku');
-	let mockMode = $state(data?.defaultMockMode ?? true);
+	let mockMode = $state(untrack(() => data?.defaultMockMode ?? true));
 	let errorTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
 
 	function setError(msg: string) {
