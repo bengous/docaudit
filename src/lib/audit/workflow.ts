@@ -1,4 +1,5 @@
 import { MAX_FILE_SIZE } from '$lib/audit/ui';
+import type { LlmSelection } from '$lib/llm/types';
 import type { AnalysisResponse } from '$lib/types';
 
 export type ValidationResult = { ok: true } | { ok: false; error: string };
@@ -16,13 +17,15 @@ export function validatePdfFile(file: File): ValidationResult {
 
 export async function analyzeDocument(
 	file: File,
-	model: 'sonnet' | 'haiku' = 'sonnet',
+	selection: LlmSelection,
 	mockMode?: boolean,
 	fetchFn: FetchLike = fetch,
-): Promise<{ analysis: AnalysisResponse; sessionId: string }> {
+): Promise<{ analysis: AnalysisResponse; continuityId: string }> {
 	const form = new FormData();
 	form.append('file', file);
-	form.append('model', model);
+	form.append('harness', selection.harness);
+	form.append('model', selection.model);
+	if (selection.reasoningEffort) form.append('reasoningEffort', selection.reasoningEffort);
 	if (mockMode !== undefined) form.append('mock', String(mockMode));
 
 	const res = await fetchFn('/api/analyze', {
@@ -34,23 +37,42 @@ export async function analyzeDocument(
 		throw new Error('Analysis failed. Check your connection and try again.');
 	}
 
-	const data = (await res.json()) as AnalysisResponse & { sessionId?: string };
+	const data = (await res.json()) as AnalysisResponse & {
+		continuityId?: string;
+		sessionId?: string;
+	};
 	return {
 		analysis: data,
-		sessionId: data.sessionId ?? '',
+		continuityId: data.continuityId ?? data.sessionId ?? '',
 	};
 }
 
+export interface GenerateImprovedDraftInput {
+	file: File | null;
+	analysis: AnalysisResponse | null;
+	continuityId: string;
+	selection: LlmSelection;
+	mockMode?: boolean;
+}
+
 export async function generateImprovedDraft(
-	sessionId: string,
-	model: 'sonnet' | 'haiku' = 'sonnet',
-	mockMode?: boolean,
+	input: GenerateImprovedDraftInput,
 	fetchFn: FetchLike = fetch,
 ): Promise<Blob> {
+	const form = new FormData();
+	form.append('harness', input.selection.harness);
+	form.append('model', input.selection.model);
+	if (input.selection.reasoningEffort) {
+		form.append('reasoningEffort', input.selection.reasoningEffort);
+	}
+	form.append('continuityId', input.continuityId);
+	if (input.mockMode !== undefined) form.append('mock', String(input.mockMode));
+	if (input.file) form.append('file', input.file);
+	if (input.analysis) form.append('analysis', JSON.stringify(input.analysis));
+
 	const res = await fetchFn('/api/generate-draft', {
 		method: 'POST',
-		headers: { 'Content-Type': 'application/json' },
-		body: JSON.stringify({ sessionId, model, mock: mockMode }),
+		body: form,
 	});
 
 	if (!res.ok || res.headers.get('Content-Type')?.includes('application/json')) {

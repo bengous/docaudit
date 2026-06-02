@@ -1,8 +1,10 @@
 import { json } from '@sveltejs/kit';
 import { extractText } from 'unpdf';
 import { env } from '$env/dynamic/private';
-import { auditDocument } from '$lib/claude/analyze';
-import { auditDocumentMock } from '$lib/claude/mock';
+import { auditDocumentMock } from '$lib/audit/mock';
+import type { LlmSelection } from '$lib/llm/types';
+import { auditDocument } from '$lib/server/llm/audit';
+import { LlmConfigError, resolveLlmSelection } from '$lib/server/llm/config';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request }) => {
@@ -13,7 +15,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	const mockOverride = formData.get('mock');
 	const useMock = mockOverride !== null ? mockOverride === 'true' : env.MOCK_MODE !== 'false';
 	console.log(
-		`[api/analyze ${ts()}] MOCK_MODE=${env.MOCK_MODE}, override=${mockOverride} -> ${useMock ? 'MOCK' : 'REAL CLAUDE'}`,
+		`[api/analyze ${ts()}] MOCK_MODE=${env.MOCK_MODE}, override=${mockOverride} -> ${useMock ? 'MOCK' : 'LIVE'}`,
 	);
 
 	if (useMock) {
@@ -43,10 +45,30 @@ export const POST: RequestHandler = async ({ request }) => {
 		`[api/analyze ${ts()}] extracted ${documentText.length} chars from ${totalPages} page(s)`,
 	);
 
-	const model = (formData.get('model') as string) === 'haiku' ? 'haiku' : 'sonnet';
-	const result = await auditDocument(documentText, model);
+	let selection: LlmSelection;
+	try {
+		selection = resolveLlmSelection(
+			{
+				harness: formValue(formData.get('harness')),
+				model: formValue(formData.get('model')),
+				reasoningEffort: formValue(formData.get('reasoningEffort')),
+			},
+			env,
+		);
+	} catch (error) {
+		if (error instanceof LlmConfigError) {
+			return json({ error: error.message }, { status: 400 });
+		}
+		throw error;
+	}
+
+	const result = await auditDocument({ documentText, selection });
 	console.log(
-		`[api/analyze ${ts()}] done! score=${result.summary.score}, sessionId=${result.sessionId}`,
+		`[api/analyze ${ts()}] done! harness=${selection.harness}, model=${selection.model}, score=${result.summary.score}, continuityId=${result.continuityId}`,
 	);
 	return json(result);
 };
+
+function formValue(value: FormDataEntryValue | null): string | undefined {
+	return typeof value === 'string' ? value : undefined;
+}

@@ -1,4 +1,5 @@
 import { heuristicsPrompt } from '$lib/fixtures/heuristics';
+import type { AnalysisResponse } from '$lib/types';
 
 export const auditSystemPrompt = `You are an auditor specialized in evaluating technical proposals for public procurement tenders.
 
@@ -11,21 +12,21 @@ Return ONLY a valid JSON object (no markdown, no explanation outside the JSON) m
 {
   "heuristics": [
     {
-      "id": "string — identifier (e.g. H1)",
-      "title": "string — short heuristic title",
+      "id": "string - identifier (e.g. H1)",
+      "title": "string - short heuristic title",
       "status": "ok | a_clarifier | manquant | incoherent | drapeau",
-      "excerpt": "string — relevant excerpt from the document (empty if the point is absent)",
-      "explanation": "string — explanation of the assigned status",
-      "suggestion": "string — concrete action to improve the document"
+      "excerpt": "string - relevant excerpt from the document (empty if the point is absent)",
+      "explanation": "string - explanation of the assigned status",
+      "suggestion": "string - concrete action to improve the document"
     }
   ],
   "summary": {
-    "ok": "number — count of OK points",
-    "aClarifier": "number — count of points needing clarification",
-    "manquant": "number — count of missing points",
-    "incoherent": "number — count of inconsistencies",
-    "genericFlag": "boolean — true if H7 (flag) is triggered",
-    "score": "number — overall score out of 100"
+    "ok": "number - count of OK points",
+    "aClarifier": "number - count of points needing clarification",
+    "manquant": "number - count of missing points",
+    "incoherent": "number - count of inconsistencies",
+    "genericFlag": "boolean - true if H7 (flag) is triggered",
+    "score": "number - overall score out of 100"
   }
 }
 
@@ -124,3 +125,30 @@ export const analysisJsonSchema = {
 	},
 	required: ['heuristics', 'summary'],
 };
+
+export function buildAuditPrompt(documentText: string): string {
+	return `${auditSystemPrompt}
+
+---
+
+DOCUMENT TO AUDIT:
+${documentText}`;
+}
+
+export function buildResumeDraftPrompt(): string {
+	return 'Now, rewrite the document by addressing all the points raised in your audit. Fill in the structured fields: entreprise (nom, adresse, email, contact), marche (titre, sous-titre of the location, date, reference), and sections (titre + contenu for each improved section). Be concrete and specific.';
+}
+
+export function buildDraftPrompt(documentText: string, analysis: AnalysisResponse): string {
+	return `${draftSystemPrompt}
+
+---
+
+DOCUMENT TO IMPROVE:
+${documentText}
+
+---
+
+AUDIT RESULT:
+${JSON.stringify(analysis, null, 2)}`;
+}

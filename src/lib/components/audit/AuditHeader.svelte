@@ -1,25 +1,36 @@
 <script lang="ts">
 	import SegmentedControl from '$lib/components/ui/SegmentedControl.svelte';
+	import type { ClientHarnessConfig, HarnessModelOption, LlmSelection } from '$lib/llm/types';
 
 	let {
 		step,
-		model,
+		selection,
+		harnesses,
+		modelOptions,
 		mockMode,
 		loading,
 		pdfUrl,
-		onToggleModel,
-		onToggleMock,
+		onSelectHarness,
+		onSelectModel,
+		onSelectMockMode,
 		onReset,
 	}: {
 		step: number;
-		model: 'sonnet' | 'haiku';
+		selection: LlmSelection;
+		harnesses: ClientHarnessConfig[];
+		modelOptions: HarnessModelOption[];
 		mockMode: boolean;
 		loading: boolean;
 		pdfUrl: string | null;
-		onToggleModel: () => void;
-		onToggleMock: () => void;
+		onSelectHarness: (harness: string) => void;
+		onSelectModel: (model: string) => void;
+		onSelectMockMode: (mockMode: boolean) => void;
 		onReset: () => void;
 	} = $props();
+
+	let harnessOptions = $derived(
+		harnesses.map((harness) => ({ value: harness.id, label: harness.label })),
+	);
 </script>
 
 <header class="border-bordure bg-surface sticky top-0 z-100 border-b">
@@ -54,14 +65,21 @@
 				<div class="flex items-center gap-3">
 					{#if !mockMode}
 						<SegmentedControl
-							options={[
-								{ value: 'sonnet', label: 'Sonnet' },
-								{ value: 'haiku', label: 'Haiku' },
-							]}
-							value={model}
+							options={harnessOptions}
+							value={selection.harness}
 							disabled={loading}
-							onchange={onToggleModel}
+							onchange={onSelectHarness}
 						/>
+						<select
+							value={selection.model}
+							disabled={loading}
+							onchange={(event) => onSelectModel(event.currentTarget.value)}
+							class="border-bordure bg-fond-alt text-texte rounded-md border px-3 py-1 text-xs font-semibold disabled:opacity-50"
+						>
+							{#each modelOptions as option (option.id)}
+								<option value={option.id}>{option.label}</option>
+							{/each}
+						</select>
 					{/if}
 					<SegmentedControl
 						options={[
@@ -70,7 +88,7 @@
 						]}
 						value={mockMode ? 'mock' : 'live'}
 						disabled={loading}
-						onchange={onToggleMock}
+						onchange={(value) => onSelectMockMode(value === 'mock')}
 					/>
 				</div>
 			{:else if step === 3 && pdfUrl}

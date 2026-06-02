@@ -13,6 +13,7 @@
 		toggleExpandedCard,
 		validatePdfFile,
 	} from '$lib/audit/workflow';
+	import type { LlmSelection } from '$lib/llm/types';
 	import type { AnalysisResponse } from '$lib/types';
 
 	let { data } = $props();
@@ -20,14 +21,19 @@
 	let step = $state(1);
 	let file = $state<File | null>(null);
 	let analysis = $state<AnalysisResponse | null>(null);
-	let sessionId = $state('');
+	let continuityId = $state('');
 	let pdfUrl = $state<string | null>(null);
 	let loading = $state(false);
 	let error = $state('');
 	let expandedCards = $state<Set<string>>(new Set());
-	let model = $state<'sonnet' | 'haiku'>('haiku');
+	let llmSelection = $state<LlmSelection>(untrack(() => data.llm.defaultSelection));
 	let mockMode = $state(untrack(() => data?.defaultMockMode ?? true));
 	let errorTimeout = $state<ReturnType<typeof setTimeout> | null>(null);
+	let selectedHarness = $derived(
+		data.llm.catalog.harnesses.find((harness) => harness.id === llmSelection.harness) ??
+			data.llm.catalog.harnesses[0],
+	);
+	let modelOptions = $derived(selectedHarness.models);
 
 	function setError(msg: string) {
 		if (errorTimeout) clearTimeout(errorTimeout);
@@ -53,8 +59,8 @@
 		loading = true;
 		error = '';
 		try {
-			const result = await analyzeDocument(file, model, mockMode);
-			sessionId = result.sessionId;
+			const result = await analyzeDocument(file, llmSelection, mockMode);
+			continuityId = result.continuityId;
 			analysis = result.analysis;
 			step = 2;
 		} catch (e) {
@@ -70,7 +76,13 @@
 		loading = true;
 		error = '';
 		try {
-			const blob = await generateImprovedDraft(sessionId, model, mockMode);
+			const blob = await generateImprovedDraft({
+				file,
+				analysis,
+				continuityId,
+				selection: llmSelection,
+				mockMode,
+			});
 			pdfUrl = URL.createObjectURL(blob);
 			step = 3;
 		} catch (e) {
@@ -86,7 +98,7 @@
 		step = 1;
 		file = null;
 		analysis = null;
-		sessionId = '';
+		continuityId = '';
 		if (pdfUrl) URL.revokeObjectURL(pdfUrl);
 		pdfUrl = null;
 		error = '';
@@ -96,17 +108,38 @@
 	function toggleCard(id: string) {
 		expandedCards = toggleExpandedCard(expandedCards, id);
 	}
+
+	function selectHarness(harnessId: string) {
+		const harness = data.llm.catalog.harnesses.find((option) => option.id === harnessId);
+		if (!harness) return;
+		const model =
+			harness.models.find((option) => option.id === llmSelection.model)?.id ?? harness.defaultModel;
+		llmSelection = {
+			harness: harness.id,
+			model,
+			...(harness.defaultReasoningEffort
+				? { reasoningEffort: harness.defaultReasoningEffort }
+				: {}),
+		};
+	}
+
+	function selectModel(model: string) {
+		llmSelection = { ...llmSelection, model };
+	}
 </script>
 
 <div class="bg-fond min-h-screen">
 	<AuditHeader
 		{step}
-		{model}
+		selection={llmSelection}
+		harnesses={data.llm.catalog.harnesses}
+		{modelOptions}
 		{mockMode}
 		{loading}
 		{pdfUrl}
-		onToggleModel={() => (model = model === 'sonnet' ? 'haiku' : 'sonnet')}
-		onToggleMock={() => (mockMode = !mockMode)}
+		onSelectHarness={selectHarness}
+		onSelectModel={selectModel}
+		onSelectMockMode={(value) => (mockMode = value)}
 		onReset={reset}
 	/>
 

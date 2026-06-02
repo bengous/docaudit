@@ -1,8 +1,8 @@
 # DocAudit
 
-A web app that audits documents using Claude and generates improved versions as PDF.
+A web app that audits documents using a configurable LLM harness and generates improved versions as PDF.
 
-I built this for a specific use case: auditing technical responses to public procurement tenders in France. A company submits a PDF, Claude checks it against 8 criteria (is the timeline addressed? are safety measures concrete? is the document too generic?), then rewrites it with the gaps filled in. The output is a formatted PDF.
+I built this for a specific use case: auditing technical responses to public procurement tenders in France. A company submits a PDF, the selected LLM harness checks it against 8 criteria (is the timeline addressed? are safety measures concrete? is the document too generic?), then rewrites it with the gaps filled in. The output is a formatted PDF.
 
 The domain is niche, but the pattern isn't. Swap the criteria and the PDF template and you've got a document auditor for grant applications, compliance checks, RFP responses, or anything where documents need to hit specific marks.
 
@@ -11,18 +11,27 @@ The domain is niche, but the pattern isn't. Swap the criteria and the PDF templa
 Three steps:
 
 1. **Upload** — Drop a PDF. Text gets extracted with `unpdf`.
-2. **Audit** — Claude evaluates the document against the criteria and returns structured JSON: a status, explanation, and suggestion for each one.
-3. **Rewrite** — Claude rewrites the document, addressing every flagged issue. The result is compiled to PDF via Typst.
+2. **Audit** — the configured harness evaluates the document against the criteria and returns structured JSON: a status, explanation, and suggestion for each one.
+3. **Rewrite** — the configured harness rewrites the document, addressing every flagged issue. The result is compiled to PDF via Typst.
 
-The second call uses `--resume <sessionId>` to continue the same Claude conversation — Claude already has the full audit in context, so there's no need to re-send anything.
+Claude draft generation uses `--resume <sessionId>` to continue the same CLI conversation. Codex does not share that Claude session contract, so its draft path uses the documented fallback: the app resends the original document text plus the structured audit result.
 
-### Claude CLI integration
+### LLM harness integration
 
-The app shells out to `claude -p` (pipe mode) via `node:child_process.spawn`. No API key in the code — it uses whatever auth the CLI already has.
+The live harness catalog is declared in `src/lib/server/llm/config.ts`. It declares each harness, model catalog, default model, command adapter, output parser, and draft continuity capability.
 
-Notable flags:
-- `--output-format json --json-schema <schema>` — structured output. Claude calls a `StructuredOutput` tool internally, and the parser in `spawn.ts` extracts it from the response envelope.
+Supported live harnesses:
+
+- `claude` — shells out to `claude -p`; supports structured output via `--json-schema`; supports draft continuity with `--resume`.
+- `codex` — shells out to `codex exec`; supports structured output via `--output-schema` and `--output-last-message`; draft generation resends document and audit context instead of resuming a Claude-style session.
+
+Claude flags:
+- `--output-format json --json-schema <schema>` — structured output. Claude calls a `StructuredOutput` tool internally, and the generic parser extracts it from the response envelope.
 - `--tools "" --strict-mcp-config --mcp-config '{"mcpServers":{}}'` — disables all tools and MCP servers. Not needed for text analysis, and it avoids surprises.
+
+Codex flags:
+- `codex exec --output-schema <schema-file> --output-last-message <file>` — structured final output is read from the last-message file.
+- `--sandbox read-only --ephemeral --ignore-rules` — keeps this path focused on text generation and avoids persisted Codex sessions.
 
 ### PDF generation
 
@@ -41,21 +50,27 @@ bun run dev
 
 Open http://localhost:5173. Click "Load demo" to pre-fill with a sample document.
 
-For live mode (requires [Claude CLI](https://docs.anthropic.com/en/docs/claude-code) authenticated):
+For live Claude mode (requires Claude CLI authenticated):
 
 ```bash
-MOCK_MODE=false bun run dev
+MOCK_MODE=false LLM_HARNESS=claude LLM_MODEL=sonnet bun run dev
+```
+
+For live Codex mode (requires Codex CLI authenticated):
+
+```bash
+MOCK_MODE=false LLM_HARNESS=codex LLM_MODEL=gpt-5.4 LLM_REASONING_EFFORT=low bun run dev
 ```
 
 You'll also need [Typst](https://typst.app/) on PATH — even in mock mode, it's used for PDF generation.
 
 ## Adapting this to another domain
 
-The whole app is a single SvelteKit project with no external services beyond the Claude CLI. To make it yours:
+The whole app is a single SvelteKit project with no external services beyond the selected CLI harness. To make it yours:
 
 **The audit criteria** live in `src/lib/fixtures/heuristics.ts` — it's a plain text prompt. Each criterion has an ID, a description, and what OK / needs work / missing looks like. This is the main thing to rewrite.
 
-**The prompts** are in `src/lib/claude/prompts.ts`. The audit prompt wraps the criteria and tells Claude to return structured JSON. The draft prompt tells Claude how to rewrite. The JSON schemas in the same file define the output shape — change them if your data structure differs.
+**The prompts** are in `src/lib/server/llm/prompts.ts`. The audit prompt wraps the criteria and tells the selected harness to return structured JSON. The draft prompt tells the selected harness how to rewrite. The JSON schemas in the same file define the output shape — change them if your data structure differs.
 
 **The PDF template** is `src/lib/typst/reponse-technique.typ` ([Typst docs](https://typst.app/docs/)). It reads JSON from `sys.inputs.payload`. Change the layout to match whatever you're generating.
 
@@ -67,19 +82,24 @@ The whole app is a single SvelteKit project with no external services beyond the
 src/
   lib/
     types.ts                  # shared TypeScript types
+    llm/
+      types.ts                # serializable harness/model selection types
     fixtures/                 # demo data and mock responses
-    claude/
-      spawn.ts                # Claude CLI runner + JSON output parser
-      analyze.ts              # audit call (structured output)
-      draft.ts                # rewrite call (resumes session)
+    server/
+      llm/
+        config.ts             # live harness catalog and env/request resolution
+        audit.ts              # generic audit/draft generation interface
+        runner.ts             # child_process command runner
+        parsers.ts            # structured JSON output parsers
+        prompts.ts            # system prompts + JSON schemas
+        adapters/             # Claude and Codex command adapters
+    audit/
       mock.ts                 # mock layer (returns fixtures)
-      prompts.ts              # system prompts + JSON schemas
+      workflow.ts             # UI workflow logic (file validation, API calls)
+      ui.ts                   # status display config
     typst/
       compile.ts              # Typst PDF compilation (stdin -> stdout)
       reponse-technique.typ   # PDF template
-    audit/
-      workflow.ts             # UI workflow logic (file validation, API calls)
-      ui.ts                   # status display config
     components/               # Svelte 5 components
   routes/
     +page.svelte              # main UI (3-step state machine)
@@ -89,7 +109,7 @@ src/
 
 ## Stack
 
-SvelteKit + Svelte 5 (runes), Tailwind CSS v4, Claude CLI in pipe mode, Typst for PDF, unpdf for text extraction.
+SvelteKit + Svelte 5 (runes), Tailwind CSS v4, Claude/Codex CLI harnesses, Typst for PDF, unpdf for text extraction.
 
 ## License
 
