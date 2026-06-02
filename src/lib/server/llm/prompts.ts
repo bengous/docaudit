@@ -53,9 +53,11 @@ Rules for the "contenu" field of each section:
 
 export const draftJsonSchema = {
 	type: 'object',
+	additionalProperties: false,
 	properties: {
 		entreprise: {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				nom: { type: 'string' },
 				adresse: { type: 'string' },
@@ -66,6 +68,7 @@ export const draftJsonSchema = {
 		},
 		marche: {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				titre: { type: 'string' },
 				sousTitre: { type: 'string' },
@@ -78,6 +81,7 @@ export const draftJsonSchema = {
 			type: 'array',
 			items: {
 				type: 'object',
+				additionalProperties: false,
 				properties: {
 					titre: { type: 'string' },
 					contenu: { type: 'string' },
@@ -91,11 +95,13 @@ export const draftJsonSchema = {
 
 export const analysisJsonSchema = {
 	type: 'object',
+	additionalProperties: false,
 	properties: {
 		heuristics: {
 			type: 'array',
 			items: {
 				type: 'object',
+				additionalProperties: false,
 				properties: {
 					id: { type: 'string' },
 					title: { type: 'string' },
@@ -112,6 +118,7 @@ export const analysisJsonSchema = {
 		},
 		summary: {
 			type: 'object',
+			additionalProperties: false,
 			properties: {
 				ok: { type: 'number' },
 				aClarifier: { type: 'number' },

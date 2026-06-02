@@ -1,4 +1,4 @@
-import { writeFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { describe, expect, it } from 'bun:test';
 import { mockAnalysis } from '../../fixtures/mock-analysis';
 import { mockDraftData } from '../../fixtures/mock-draft-data';
@@ -71,8 +71,11 @@ describe('LLM audit runner', () => {
 
 	it('runs Codex draft generation by resending document and audit context', async () => {
 		const commands: PreparedCommand[] = [];
+		let schema: Record<string, unknown> | undefined;
 		const runner: CommandRunner = async (command) => {
 			commands.push(command);
+			const schemaPath = command.args[command.args.indexOf('--output-schema') + 1];
+			schema = JSON.parse(await readFile(schemaPath, 'utf8')) as Record<string, unknown>;
 			if (command.outputFiles?.lastMessage) {
 				await writeFile(command.outputFiles.lastMessage, JSON.stringify(mockDraftData), 'utf8');
 			}
@@ -94,6 +97,11 @@ describe('LLM audit runner', () => {
 		expect(commands[0].args).toContain('gpt-5.4');
 		expect(commands[0].args).toContain('--output-schema');
 		expect(commands[0].args).toContain('--output-last-message');
+		expect(schema?.additionalProperties).toBe(false);
+		expect(
+			(schema?.properties as Record<string, Record<string, unknown>>).entreprise
+				.additionalProperties,
+		).toBe(false);
 		expect(commands[0].stdin).toContain('DOCUMENT TO IMPROVE');
 		expect(commands[0].stdin).toContain('AUDIT RESULT');
 	});
