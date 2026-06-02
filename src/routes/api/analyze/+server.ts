@@ -47,7 +47,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 	let selection: LlmSelection;
 	try {
-		selection = resolveLlmSelection(
+		selection = await resolveLlmSelection(
 			{
 				harness: formValue(formData.get('harness')),
 				model: formValue(formData.get('model')),

@@ -1,6 +1,7 @@
 import type { ClientLlmCatalog, LlmSelection, ReasoningEffort } from '$lib/llm/types';
 import { claudeAdapter } from './adapters/claude';
 import { codexAdapter } from './adapters/codex';
+import { CODEX_FALLBACK_MODEL_CATALOG, getCodexModelCatalog } from './codex-catalog';
 import type { LiveHarnessConfig } from './types';
 
 export class LlmConfigError extends Error {
@@ -23,9 +24,14 @@ interface LlmSelectionInput {
 	reasoningEffort?: string;
 }
 
-const REASONING_EFFORTS = ['low', 'medium', 'high'] as const satisfies readonly ReasoningEffort[];
+const REASONING_EFFORTS = [
+	'low',
+	'medium',
+	'high',
+	'xhigh',
+] as const satisfies readonly ReasoningEffort[];
 
-const liveHarnesses: Record<string, LiveHarnessConfig> = {
+const staticHarnesses: Record<string, LiveHarnessConfig> = {
 	claude: {
 		id: 'claude',
 		label: 'Claude',
@@ -45,15 +51,10 @@ const liveHarnesses: Record<string, LiveHarnessConfig> = {
 		id: 'codex',
 		label: 'Codex',
 		executable: 'codex',
-		defaultModel: 'gpt-5.5',
-		defaultReasoningEffort: 'medium',
-		models: [
-			{ id: 'gpt-5.4', label: 'GPT-5.4' },
-			{ id: 'gpt-5.4-mini', label: 'GPT-5.4 Mini' },
-			{ id: 'gpt-5.3-codex-spark', label: 'GPT-5.3 Codex Spark' },
-			{ id: 'gpt-5.5', label: 'GPT-5.5' },
-		],
-		reasoningEfforts: REASONING_EFFORTS,
+		defaultModel: CODEX_FALLBACK_MODEL_CATALOG.defaultModel,
+		defaultReasoningEffort: CODEX_FALLBACK_MODEL_CATALOG.defaultReasoningEffort,
+		models: [],
+		reasoningEfforts: CODEX_FALLBACK_MODEL_CATALOG.reasoningEfforts,
 		capabilities: {
 			draftContinuity: 'resend-context',
 			structuredOutput: 'output-schema-file',
@@ -64,20 +65,22 @@ const liveHarnesses: Record<string, LiveHarnessConfig> = {
 
 const DEFAULT_HARNESS = 'claude';
 
-export function getHarnessConfig(harnessId: string): LiveHarnessConfig {
-	const harness = liveHarnesses[harnessId as keyof typeof liveHarnesses];
+export async function getHarnessConfig(harnessId: string): Promise<LiveHarnessConfig> {
+	const harnesses = await getLiveHarnesses();
+	const harness = harnesses[harnessId];
 	if (!harness) {
 		throw new LlmConfigError(
-			`Unknown LLM harness "${harnessId}". Available harnesses: ${Object.keys(liveHarnesses).join(', ')}.`,
+			`Unknown LLM harness "${harnessId}". Available harnesses: ${Object.keys(harnesses).join(', ')}.`,
 		);
 	}
 	return harness;
 }
 
-export function getClientLlmCatalog(): ClientLlmCatalog {
+export async function getClientLlmCatalog(): Promise<ClientLlmCatalog> {
+	const harnesses = await getLiveHarnesses();
 	return {
 		defaultHarness: DEFAULT_HARNESS,
-		harnesses: Object.values(liveHarnesses).map(
+		harnesses: Object.values(harnesses).map(
 			({
 				id,
 				label,
@@ -99,13 +102,17 @@ export function getClientLlmCatalog(): ClientLlmCatalog {
 	};
 }
 
-export function resolveLlmSelection(input: LlmSelectionInput, env: LlmEnv = {}): LlmSelection {
+export async function resolveLlmSelection(
+	input: LlmSelectionInput,
+	env: LlmEnv = {},
+): Promise<LlmSelection> {
 	const harnessId = firstNonEmpty(input.harness, env.LLM_HARNESS, DEFAULT_HARNESS);
-	const harness = getHarnessConfig(harnessId);
+	const harness = await getHarnessConfig(harnessId);
 	const model = firstNonEmpty(input.model, env.LLM_MODEL, harness.defaultModel);
 	const reasoningEffort = resolveReasoningEffort(input.reasoningEffort, env.LLM_REASONING_EFFORT);
+	const modelConfig = harness.models.find((option) => option.id === model);
 
-	if (!harness.models.some((option) => option.id === model)) {
+	if (!modelConfig) {
 		throw new LlmConfigError(
 			`Unknown model "${model}" for harness "${harness.id}". Available models: ${harness.models
 				.map((option) => option.id)
@@ -113,16 +120,34 @@ export function resolveLlmSelection(input: LlmSelectionInput, env: LlmEnv = {}):
 		);
 	}
 
-	if (reasoningEffort && !harness.reasoningEfforts?.includes(reasoningEffort)) {
+	const supportedReasoningEfforts = modelConfig.reasoningEfforts ?? harness.reasoningEfforts;
+	const selectedReasoningEffort =
+		reasoningEffort ?? modelConfig.defaultReasoningEffort ?? harness.defaultReasoningEffort;
+
+	if (selectedReasoningEffort && !supportedReasoningEfforts?.includes(selectedReasoningEffort)) {
 		throw new LlmConfigError(
-			`Reasoning effort "${reasoningEffort}" is not configured for harness "${harness.id}".`,
+			`Reasoning effort "${selectedReasoningEffort}" is not configured for model "${model}" on harness "${harness.id}".`,
 		);
 	}
 
 	return {
 		harness: harness.id,
 		model,
-		...(reasoningEffort ? { reasoningEffort } : {}),
+		...(selectedReasoningEffort ? { reasoningEffort: selectedReasoningEffort } : {}),
+	};
+}
+
+async function getLiveHarnesses(): Promise<Record<string, LiveHarnessConfig>> {
+	const codexCatalog = await getCodexModelCatalog();
+	return {
+		...staticHarnesses,
+		codex: {
+			...staticHarnesses.codex,
+			defaultModel: codexCatalog.defaultModel,
+			defaultReasoningEffort: codexCatalog.defaultReasoningEffort,
+			models: codexCatalog.models,
+			reasoningEfforts: codexCatalog.reasoningEfforts,
+		},
 	};
 }
 

@@ -35,7 +35,7 @@ export const POST: RequestHandler = async ({ request }) => {
 	} else {
 		let selection: LlmSelection;
 		try {
-			selection = resolveLlmSelection(
+			selection = await resolveLlmSelection(
 				{
 					harness: draftRequest.harness,
 					model: draftRequest.model,
@@ -50,7 +50,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			throw error;
 		}
 
-		const harness = getHarnessConfig(selection.harness);
+		const harness = await getHarnessConfig(selection.harness);
 		const needsContext =
 			harness.capabilities.draftContinuity !== 'resume-session' || !draftRequest.continuityId;
 

@@ -18,12 +18,14 @@ Claude draft generation uses `--resume <sessionId>` to continue the same CLI con
 
 ### LLM harness integration
 
-The live harness catalog is declared in `src/lib/server/llm/config.ts`. It declares each harness, model catalog, default model, command adapter, output parser, and draft continuity capability.
+The live harness catalog is declared through `src/lib/server/llm/config.ts`. It declares each harness, model catalog, default model, command adapter, output parser, and draft continuity capability.
 
 Supported live harnesses:
 
-- `claude` — shells out to `claude -p`; supports structured output via `--json-schema`; supports draft continuity with `--resume`.
-- `codex` — shells out to `codex exec`; supports structured output via `--output-schema` and `--output-last-message`; draft generation resends document and audit context instead of resuming a Claude-style session.
+- `claude` — shells out to `claude -p`; keeps the static `sonnet` / `haiku` catalog; supports structured output via `--json-schema`; supports draft continuity with `--resume`.
+- `codex` — loads model metadata dynamically from `codex debug models`, filtering to models where `visibility == "list"`; supports structured output via `--output-schema` and `--output-last-message`; draft generation resends document and audit context instead of resuming a Claude-style session.
+
+Codex model metadata is cached for a short period and falls back to a static catalog if `codex debug models` is unavailable, slow, or returns invalid JSON. Each Codex model carries its own default reasoning effort and supported reasoning efforts.
 
 Claude flags:
 - `--output-format json --json-schema <schema>` — structured output. Claude calls a `StructuredOutput` tool internally, and the generic parser extracts it from the response envelope.
@@ -31,6 +33,7 @@ Claude flags:
 
 Codex flags:
 - `codex exec --output-schema <schema-file> --output-last-message <file>` — structured final output is read from the last-message file.
+- `--config model_reasoning_effort="<level>"` — sent only for Codex selections after validating the level against the selected model metadata.
 - `--sandbox read-only --ephemeral --ignore-rules` — keeps this path focused on text generation and avoids persisted Codex sessions.
 
 ### PDF generation
@@ -62,6 +65,8 @@ For live Codex mode (requires Codex CLI authenticated):
 MOCK_MODE=false LLM_HARNESS=codex LLM_MODEL=gpt-5.4 LLM_REASONING_EFFORT=low bun run dev
 ```
 
+If `LLM_REASONING_EFFORT` is omitted, the app uses the selected Codex model's `default_reasoning_level` from `codex debug models`.
+
 You'll also need [Typst](https://typst.app/) on PATH — even in mock mode, it's used for PDF generation.
 
 ## Adapting this to another domain
@@ -88,6 +93,7 @@ src/
     server/
       llm/
         config.ts             # live harness catalog and env/request resolution
+        codex-catalog.ts      # dynamic Codex model catalog loader + fallback
         audit.ts              # generic audit/draft generation interface
         runner.ts             # child_process command runner
         parsers.ts            # structured JSON output parsers

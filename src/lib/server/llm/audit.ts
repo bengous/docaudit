@@ -37,8 +37,8 @@ export interface GenerateDraftInput {
 }
 
 export async function auditDocument(input: AuditDocumentInput): Promise<AnalysisRunResult> {
-	const harness = getHarnessConfig(input.selection.harness);
-	assertModelSupported(input.selection);
+	const harness = await getHarnessConfig(input.selection.harness);
+	await assertModelSupported(input.selection);
 
 	const prompt = buildAuditPrompt(input.documentText);
 	console.log(`[analyze] harness=${harness.id}, model=${input.selection.model}`);
@@ -72,8 +72,8 @@ export async function auditDocument(input: AuditDocumentInput): Promise<Analysis
 }
 
 export async function generateDraft(input: GenerateDraftInput): Promise<DraftData> {
-	const harness = getHarnessConfig(input.selection.harness);
-	assertModelSupported(input.selection);
+	const harness = await getHarnessConfig(input.selection.harness);
+	await assertModelSupported(input.selection);
 
 	const shouldResume =
 		harness.capabilities.draftContinuity === 'resume-session' && Boolean(input.continuityId);
@@ -130,8 +130,8 @@ export async function runStructuredPrompt(
 	}
 }
 
-function assertModelSupported(selection: LlmSelection): void {
-	const harness = getHarnessConfig(selection.harness);
+async function assertModelSupported(selection: LlmSelection): Promise<void> {
+	const harness = await getHarnessConfig(selection.harness);
 	if (!harness.models.some((option) => option.id === selection.model)) {
 		throw new Error(
 			`Model "${selection.model}" is not configured for harness "${selection.harness}".`,

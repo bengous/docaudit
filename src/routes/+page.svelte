@@ -112,19 +112,29 @@
 	function selectHarness(harnessId: string) {
 		const harness = data.llm.catalog.harnesses.find((option) => option.id === harnessId);
 		if (!harness) return;
-		const model =
-			harness.models.find((option) => option.id === llmSelection.model)?.id ?? harness.defaultModel;
+		const modelOption =
+			harness.models.find((option) => option.id === llmSelection.model) ??
+			harness.models.find((option) => option.id === harness.defaultModel) ??
+			harness.models[0];
 		llmSelection = {
 			harness: harness.id,
-			model,
-			...(harness.defaultReasoningEffort
-				? { reasoningEffort: harness.defaultReasoningEffort }
+			model: modelOption.id,
+			...(modelOption.defaultReasoningEffort
+				? { reasoningEffort: modelOption.defaultReasoningEffort }
 				: {}),
 		};
 	}
 
 	function selectModel(model: string) {
-		llmSelection = { ...llmSelection, model };
+		const modelOption = modelOptions.find((option) => option.id === model);
+		if (!modelOption) return;
+		llmSelection = {
+			...llmSelection,
+			model,
+			...(modelOption.defaultReasoningEffort
+				? { reasoningEffort: modelOption.defaultReasoningEffort }
+				: {}),
+		};
 	}
 </script>
 

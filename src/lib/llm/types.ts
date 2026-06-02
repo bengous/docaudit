@@ -1,9 +1,11 @@
 export type DraftContinuityMode = 'resume-session' | 'resend-context';
-export type ReasoningEffort = 'low' | 'medium' | 'high';
+export type ReasoningEffort = 'low' | 'medium' | 'high' | 'xhigh';
 
 export interface HarnessModelOption {
 	id: string;
 	label: string;
+	defaultReasoningEffort?: ReasoningEffort;
+	reasoningEfforts?: readonly ReasoningEffort[];
 }
 
 export interface HarnessCapabilities {
